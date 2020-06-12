@@ -58,6 +58,8 @@ Register you application at the registration portal for the Azure AD v1.0 endpoi
 4. Select **Expose an API** under **Manage**. Select the **Set** link to generate the Application ID URI in the form of `api://{AppID}`. Insert your fully qualified domain name (with a forward slash "/" appended to the end) between the double forward slashes and the GUID. The entire ID should have the form of: `api://fully-qualified-domain-name.com/{AppID}`
     * ex: `api://subdomain.example.com:6789/c6c1f32b-5e55-4997-881a-753cc1d563b7`.
 
+> Question: Why not just use api://<appId>?  You're registering an API and this app registration is not use as a client from within Teams at anypoint.  
+
 > [!NOTE]
 > If you get an error saying that the domain is already owned but you own it, follow the procedure at [Quickstart: Add a custom domain name to Azure Active Directory](/azure/active-directory/fundamentals/add-custom-domain) to register it, and then repeat this step. (This error can also occur if you are not signed in with credentials of an admin in the Office 365 tenancy).
 
@@ -82,13 +84,24 @@ Register you application at the registration portal for the Azure AD v1.0 endpoi
     * openid
     * profile
 
+> Question: Not sure why API permissions are required given that you're not acting as client in this scenario.  That is the client app is not calling anything.  Who is using this information and when?
+
+> Suggestion: I think that we can perform all of these steps from within App Studio assuming that the developer has permission to register an application.  (Some AAD tenants prevent employees/members of the directory from performing app registration)
+
 ### 2. Update your Microsoft Teams application manifest
 
 Add new properties to your Microsoft Teams manifest:
 
 * **WebApplicationInfo** - The parent of the following elements.
 * **Id** - The client ID of the application. This is an application ID that you obtain as part of registering the application with Azure AD 1.0 endpoint.
+
+> Suggestion: The app registration will work for both AAD V1 (AAD Accounts only) and AAD v2 (AAD & MSA Accounts).
+
+> Question: I"m actually not clear how a developer knows whether they have an AAD user or an MSA user as the currently signed in account.  Hopefully we're moving away from dual stacked implementations here.
+
 * **Resource** - The domain and subdomain of your application. This is the same URI (including the `api://` protocol) that you used when registering the app in AAD. The domain part of this URI should match the domain, including any subdomains, used in the URLs in the section of your Teams application manifest.
+
+> Suggestion: This is called a scope in the registration portal.  It sounds like were using ADAL under the covers in these scenarios; however we don't need to expose that to developers.  Likely simpler to be consistent.
 
 ```json
 "webApplicationInfo": {
@@ -100,8 +113,13 @@ Add new properties to your Microsoft Teams manifest:
 Notes:
 
 * The resource for an AAD app will usually just be the root of its site URL and the appID (e.g. `api://subdomain.example.com/6789/c6c1f32b-5e55-4997-881a-753cc1d563b7`). We also use this value to ensure your request is coming from the same domain. Therefor make sure that your `contentURL` for your tab uses the same domains as your resource property.
+
+> Question: What security benefit do we believe is being conferred with this approach?  Are we attempting to authenticate the teams app/addin via this check?  If so for what purpose? 
+
 * You need to be using manifest version 1.5 or higher for these fields to be used.
 * Scopes aren’t supported in the manifest and instead should be specified in the API Permissions section in the Azure portal
+
+> Question: I wasn't sure what this statement meant.  Making a token request for a resource and making a request for scopes are one and the same.  
 
 ### 3. Get an authentication token from your client-side code
 
@@ -116,6 +134,8 @@ microsoftTeams.authentication.getAuthToken(authTokenRequest);
 ```
 
 When you call `getAuthToken` - and additional user consent is required (for user-level permissions) - we will show a dialog to the user encouraging them to grant additional consent. 
+
+> Question: In what scenario would that happen?  Assuming the app has pre-authorized Teams to access the API and scopes defined above.  I can see how if you actually implement an API and are attempting to use on-behalf-of that additional consent coudl be required, but i'm unclear on how Teams client would collect that on-behalf of the Teams app /add in
 
 <img src="~/assets/images/tabs/tabs-sso-prompt.png" alt="Tab single sign-on SSO dialog prompt" width="75%"/>
 
